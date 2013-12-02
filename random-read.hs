@@ -1,24 +1,60 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
+import Control.Applicative
 import Control.Exception(Exception, IOException, throwIO, try)
+import Data.Ratio(denominator, numerator, (%))
 import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Typeable(Typeable)
 import Data.Word(Word64)
 import Foreign.Marshal.Alloc(allocaBytes)
 import Numeric(showFFloat)
-import System.Environment(getArgs)
+import Options.Applicative(arguments1, eitherReader, execParser, help, helper, info,
+                           long, metavar, nullOption, progDesc, short, showDefaultWith,
+                           value, idm, (<>))
 import System.Exit(ExitCode(ExitFailure), exitWith)
 import System.IO(Handle, IOMode(ReadMode), SeekMode(AbsoluteSeek, SeekFromEnd),
                  hFileSize, hGetBuf, hSeek, hTell, withBinaryFile)
 import System.Random(RandomGen, newStdGen, randomR)
 
+default_prob = 1/20
+default_blocksize = 1048576
+
+describe = progDesc "test-read a random sample of data in files"
+
+argparser = Param
+            <$> nullOption (long "prob" <> short 'p' <> metavar "M/N"
+                            <> help "probability"
+                            <> value default_prob
+                            <> showDefaultWith show_prob
+                            <> eitherReader read_prob)
+            <*> nullOption (long "bs" <> short 'b' <> metavar "BYTES"
+                            <> help ("block size per read, in bytes")
+                            <> value default_blocksize
+                            <> showDefaultWith show
+                            <> eitherReader read_blocksize)
+            <*> arguments1 Just (metavar "FILES" <> help "files to be tested")
+
+data Param = Param Rational Int [String]
+
+show_prob r = show (numerator r) ++ "/" ++ show (denominator r)
+
+read_prob s = case comp of
+    [(r, "")] | 0 <= r && r <= 1 -> Right r
+              | otherwise -> Left "must be between 0 and 1 inclusive"
+    _ -> Left "must be a fraction M/N"
+  where
+    comp = [(m%n, s2) | (m, '/':s1) <- reads s, (n, s2) <- reads s1]
+
+read_blocksize s = case reads s of
+    [(n, "")] | n >= 1 -> Right n
+              | otherwise -> Left "must be at least 1"
+    _ -> Left "must be a positive integer"
+
 main = do
-    args <- getArgs
-    infos <- mapM getfileinfo args
-    let prob = 1/20
-        blocksize = 1048576  -- 1024*1024
-        total = fromIntegral (sum (map fi_size infos))
+    Param prob blocksize files <- execParser (info (helper <*> argparser) describe)
+    infos <- mapM getfileinfo files
+    let total = fromIntegral (sum (map fi_size infos))
         total :: Double
     r <- read_all prob blocksize infos
     case r of
