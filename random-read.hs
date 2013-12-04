@@ -2,6 +2,8 @@
 
 import Control.Applicative
 import Control.Exception(Exception, IOException, throwIO, try)
+import Control.Monad(when)
+import Data.IORef(newIORef, readIORef, writeIORef)
 import Data.Ratio(denominator, numerator, (%))
 import Data.Set(Set)
 import qualified Data.Set as Set
@@ -13,8 +15,8 @@ import Options.Applicative(arguments1, eitherReader, execParser, help, helper, i
                            long, metavar, nullOption, progDesc, short, showDefaultWith,
                            value, idm, (<>))
 import System.Exit(ExitCode(ExitFailure), exitWith)
-import System.IO(Handle, IOMode(ReadMode), SeekMode(AbsoluteSeek, SeekFromEnd),
-                 hFileSize, hGetBuf, hSeek, hTell, withBinaryFile)
+import System.IO(Handle, IOMode(ReadMode), SeekMode(AbsoluteSeek, SeekFromEnd), hFlush,
+                 hFileSize, hGetBuf, hSeek, hTell, stdout, withBinaryFile)
 import System.Random(RandomGen, newStdGen, randomR)
 
 default_prob = 1/20
@@ -56,7 +58,7 @@ main = do
     infos <- mapM getfileinfo files
     let total = fromIntegral (sum (map fi_size infos))
         total :: Double
-    r <- read_all prob blocksize infos
+    r <- read_all prob blocksize infos total
     case r of
         Pass -> putStrLn "passes test"
         Error ioe loc -> do
@@ -73,16 +75,33 @@ getfileinfo filename = withBinaryFile filename ReadMode $ \h -> do
                               hTell h
     return (FileInfo filename (fromInteger size))
 
-read_all prob blocksize infos = go infos 0
-  where
-    go [] _ = return Pass
-    go (FileInfo filename len : more) sumlen = do
-        r <- withBinaryFile filename ReadMode $ \h -> do
+-- dots_full is how many dots represent 100% in the progress bar
+dots_full = 50
+
+read_all prob blocksize infos total = do
+    dots <- newIORef 0
+    let go [] _ = return Pass
+        go (FileInfo filename len : more) sumlen = do
             ls <- random_locations blocksize len prob `fmap` newStdGen
-            try_read h blocksize ls
-        case r of
-            Pass -> go more $! sumlen+len
-            Error ioe loc -> return (Error ioe (sumlen+loc))
+            r <- withBinaryFile filename ReadMode
+                 (\h -> try_read h blocksize ls (print_dot sumlen))
+            case r of
+                Pass -> go more $! sumlen+len
+                Error ioe loc -> return (Error ioe (sumlen+loc))
+        -- progress dots are printed this way: n dots means the most recent
+        -- location read is n/dots_full*100% into the files
+        print_dot sumlen loc = do
+            dots_old <- readIORef dots
+            let dots_new = ceiling (fromIntegral (sumlen+loc) / total * fromIntegral dots_full)
+                diff = dots_new - dots_old
+            when (diff > 0) $ do
+                putStr (replicate diff '>')
+                hFlush stdout
+                writeIORef dots dots_new
+    putStr (replicate (dots_full - 1) '-') >> putStrLn "|"
+    r <- go infos 0
+    putStrLn ""
+    return r
 
 {- Assume 1 <= /step/ <= /len/, 0 <= /prob/ <= 1.
 
@@ -110,11 +129,11 @@ random_locations step len prob g = make g k Set.empty
                 | otherwise -> make g1 (k-1) $! (Set.insert mr s)
           where mr = r * step_
 
-{- @try_read handle size set@ tries to read from @handle@ the locations in @set@
-in increasing order, at each location read @size@ bytes. Returns Pass or the first 
-I/O error and its location. -}
-try_read :: Handle -> Int -> Set Word64 -> IO Report
-try_read handle size set = allocaBytes size $ \buf -> do
+{- @try_read@ /handle size set notify/ tries to read from /handle/ the locations in /set/
+in increasing order, at each location read /size/ bytes. After reading at location
+/loc/ say, call /notify loc/. Return @Pass@ or the first I/O error and its location. -}
+try_read :: Handle -> Int -> Set Word64 -> (Word64 -> IO a) -> IO Report
+try_read handle size set notify = allocaBytes size $ \buf -> do
     e <- try (mapM_ (seekread buf) (Set.toAscList set))
     case e of
         Left (Errloc ioe loc) -> return (Error ioe loc)
@@ -123,7 +142,7 @@ try_read handle size set = allocaBytes size $ \buf -> do
     seekread buf loc =
         do hSeek handle AbsoluteSeek (toInteger loc)
            hGetBuf handle buf size
-           return ()
+           notify loc
         `except` (\ioe -> throwIO (Errloc ioe loc))
     -- if loc is too large, there is no error, hSeek succeeds, hGetBuf
     -- returns 0. I'm fine with it.

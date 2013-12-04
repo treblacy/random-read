@@ -3,6 +3,8 @@ Report the first sampled error location as a percentage of the sum of file sizes
 Example of what I mean (in fact original motivation):
 
     $ random-read VTS_01_1.VOB VTS_01_2.VOB VTS_01_3.VOB
+    -------------------------------------------------|
+    >>>>>>>>>>>>>>>>>>>>
     VTS_01_2.VOB: hGetBuf: hardware fault (Input/output error)
     error location: 42%
 
