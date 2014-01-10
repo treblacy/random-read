@@ -19,7 +19,7 @@ import System.IO(Handle, IOMode(ReadMode), SeekMode(AbsoluteSeek, SeekFromEnd), 
                  hFileSize, hGetBuf, hSeek, hTell, stdout, withBinaryFile)
 import System.Random(RandomGen, newStdGen, randomR)
 
-default_prob = 1/20
+default_prob = 1/16
 default_blocksize = 1048576
 
 describe = progDesc "test-read a random sample of data in files"
