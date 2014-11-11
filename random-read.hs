@@ -11,9 +11,9 @@ import Data.Typeable(Typeable)
 import Data.Word(Word64)
 import Foreign.Marshal.Alloc(allocaBytes)
 import Numeric(showFFloat)
-import Options.Applicative(arguments1, eitherReader, execParser, help, helper, info,
-                           long, metavar, nullOption, progDesc, short, showDefaultWith,
-                           value, idm, (<>))
+import Options.Applicative(eitherReader, execParser, help, helper, info,
+                           long, metavar, option, progDesc, short, showDefaultWith,
+                           strArgument, value, (<>))
 import System.Exit(ExitCode(ExitFailure), exitWith)
 import System.IO(Handle, IOMode(ReadMode), SeekMode(AbsoluteSeek, SeekFromEnd), hFlush,
                  hFileSize, hGetBuf, hSeek, hTell, stdout, withBinaryFile)
@@ -25,17 +25,17 @@ default_blocksize = 1048576
 describe = progDesc "test-read a random sample of data in files"
 
 argparser = Param
-            <$> nullOption (long "prob" <> short 'p' <> metavar "M/N"
-                            <> help "probability"
-                            <> value default_prob
-                            <> showDefaultWith show_prob
-                            <> eitherReader read_prob)
-            <*> nullOption (long "bs" <> short 'b' <> metavar "BYTES"
+            <$> option (eitherReader read_prob) (long "prob" <> short 'p' <> metavar "M/N"
+                        <> help "probability"
+                        <> value default_prob
+                        <> showDefaultWith show_prob
+                        )
+            <*> option (eitherReader read_blocksize) (long "bs" <> short 'b' <> metavar "BYTES"
                             <> help ("block size per read, in bytes")
                             <> value default_blocksize
                             <> showDefaultWith show
-                            <> eitherReader read_blocksize)
-            <*> arguments1 Just (metavar "FILES" <> help "files to be tested")
+                            )
+            <*> some (strArgument (metavar "FILES" <> help "files to be tested"))
 
 data Param = Param Rational Int [String]
 
