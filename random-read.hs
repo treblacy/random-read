@@ -25,16 +25,16 @@ default_blocksize = 1048576
 describe = progDesc "test-read a random sample of data in files"
 
 argparser = Param
-            <$> option (eitherReader read_prob) (long "prob" <> short 'p' <> metavar "M/N"
+            <$> option (eitherReader read_prob)
+                       (long "prob" <> short 'p' <> metavar "M/N"
                         <> help "probability"
                         <> value default_prob
-                        <> showDefaultWith show_prob
-                        )
-            <*> option (eitherReader read_blocksize) (long "bs" <> short 'b' <> metavar "BYTES"
-                            <> help ("block size per read, in bytes")
-                            <> value default_blocksize
-                            <> showDefaultWith show
-                            )
+                        <> showDefaultWith show_prob)
+            <*> option (eitherReader read_blocksize)
+                       (long "bs" <> short 'b' <> metavar "BYTES"
+                        <> help ("block size per read, in bytes")
+                        <> value default_blocksize
+                        <> showDefaultWith show)
             <*> some (strArgument (metavar "FILES" <> help "files to be tested"))
 
 data Param = Param Rational Int [String]
