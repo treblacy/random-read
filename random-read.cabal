@@ -1,5 +1,5 @@
 name:                random-read
-version:             1.0.0.2
+version:             1.0.0.3
 synopsis:            Test-read files at random sample points.
 homepage:            https://github.com/treblacy/random-read
 license:             BSD3
@@ -16,5 +16,5 @@ executable random-read
   build-depends:       base >= 4.6
                      , containers >= 0.5
                      , options == 1.2.*
-                     , random >= 1.0
+                     , tf-random == 0.5.*
   default-language:    Haskell2010

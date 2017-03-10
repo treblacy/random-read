@@ -16,7 +16,8 @@ import Options(Option(optionDescription, optionLongFlags, optionShortFlags),
 import System.Exit(ExitCode(ExitFailure), exitWith)
 import System.IO(Handle, IOMode(ReadMode), SeekMode(AbsoluteSeek, SeekFromEnd), hFlush,
                  hFileSize, hGetBuf, hSeek, hTell, stdout, withBinaryFile)
-import System.Random(RandomGen, newStdGen, randomR)
+import System.Random.TF(TFGen, newTFGen)
+import System.Random.TF.Instances(randomR)
 
 default_prob = 1/16
 default_blocksize = 1048576
@@ -81,7 +82,7 @@ read_all prob blocksize infos total = do
     dots <- newIORef 0
     let go [] _ = return Pass
         go (FileInfo filename len : more) sumlen = do
-            ls <- random_locations blocksize len prob `fmap` newStdGen
+            ls <- random_locations blocksize len prob `fmap` newTFGen
             r <- withBinaryFile filename ReadMode
                  (\h -> try_read h blocksize ls (print_dot sumlen))
             case r of
@@ -113,7 +114,7 @@ floor(prob * |/S/|) random numbers in /S/.
 
 > locs <- random_locations step len prob `fmap` newStdGen
 -}
-random_locations :: RandomGen g => Int -> Word64 -> Rational -> g -> Set Word64
+random_locations :: Int -> Word64 -> Rational -> TFGen -> Set Word64
 random_locations step len prob g = make g k Set.empty
   where
     step_, n :: Word64
