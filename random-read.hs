@@ -11,9 +11,8 @@ import Data.Typeable(Typeable)
 import Data.Word(Word64)
 import Foreign.Marshal.Alloc(allocaBytes)
 import Numeric(showFFloat)
-import Options.Applicative(eitherReader, execParser, help, helper, info,
-                           long, metavar, option, progDesc, short, showDefaultWith,
-                           strArgument, value, (<>))
+import Options(Option(optionDescription, optionLongFlags, optionShortFlags),
+               Options(..), defineOption, optionType, runCommand)
 import System.Exit(ExitCode(ExitFailure), exitWith)
 import System.IO(Handle, IOMode(ReadMode), SeekMode(AbsoluteSeek, SeekFromEnd), hFlush,
                  hFileSize, hGetBuf, hSeek, hTell, stdout, withBinaryFile)
@@ -22,25 +21,25 @@ import System.Random(RandomGen, newStdGen, randomR)
 default_prob = 1/16
 default_blocksize = 1048576
 
-describe = progDesc "test-read a random sample of data in files"
+description = "test-read a random sample of data in files"
 
-argparser = Param
-            <$> option (eitherReader read_prob)
-                       (long "prob" <> short 'p' <> metavar "M/N"
-                        <> help "probability"
-                        <> value default_prob
-                        <> showDefaultWith show_prob)
-            <*> option (eitherReader read_blocksize)
-                       (long "bs" <> short 'b' <> metavar "BYTES"
-                        <> help ("block size per read, in bytes")
-                        <> value default_blocksize
-                        <> showDefaultWith show)
-            <*> some (strArgument (metavar "FILES" <> help "files to be tested"))
+data Param = Param Rational Int
 
-data Param = Param Rational Int [String]
+instance Options Param where
+    defineOptions = Param <$>
+        defineOption optionType_prob
+          (\o -> o{optionShortFlags = "p",
+                   optionLongFlags = ["prob"],
+                   optionDescription = "sampling probability"})
+        <*>
+        defineOption optionType_blocksize
+          (\o -> o{optionShortFlags = "b",
+                   optionLongFlags = ["bs"],
+                   optionDescription = "block size per sample, # of bytes"})
 
 show_prob r = show (numerator r) ++ "/" ++ show (denominator r)
 
+optionType_prob = optionType "fraction, 0 <= M/N <= 1" default_prob read_prob show_prob
 read_prob s = case comp of
     [(r, "")] | 0 <= r && r <= 1 -> Right r
               | otherwise -> Left "must be between 0 and 1 inclusive"
@@ -48,13 +47,13 @@ read_prob s = case comp of
   where
     comp = [(m%n, s2) | (m, '/':s1) <- reads s, (n, s2) <- reads s1]
 
+optionType_blocksize = optionType "positive integer" default_blocksize read_blocksize show
 read_blocksize s = case reads s of
     [(n, "")] | n >= 1 -> Right n
               | otherwise -> Left "must be at least 1"
     _ -> Left "must be a positive integer"
 
-main = do
-    Param prob blocksize files <- execParser (info (helper <*> argparser) describe)
+main = runCommand $ \(Param prob blocksize) files -> do
     infos <- mapM getfileinfo files
     let total = fromIntegral (sum (map fi_size infos))
         total :: Double
